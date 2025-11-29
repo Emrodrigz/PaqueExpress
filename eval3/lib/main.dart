@@ -28,10 +28,7 @@ class ApiClient {
       },
       onError: (e, handler) async {
         if (e.response?.statusCode == 401) {
-          // Si el token expira o es inválido, borra y redirige
           await storage.delete(key: "token");
-          // Nota: La redirección a LoginPage debe manejarse a nivel de widget, 
-          // aquí solo se borra el token.
         }
         handler.next(e);
       },
@@ -46,14 +43,29 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
         title: "Paquexpress",
-        theme: ThemeData(primarySwatch: Colors.blue),
+        theme: ThemeData(
+          primarySwatch: Colors.red,
+          primaryColor: Colors.red.shade700,
+          appBarTheme: AppBarTheme(
+             backgroundColor: Colors.red.shade700,
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red.shade700,
+            ),
+          )
+        ),
         home: const LoginPage(),
       );
 }
-
-// -----------------------------------------------------------------
-// PÁGINA DE LOGIN
-// -----------------------------------------------------------------
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -75,7 +87,6 @@ class _LoginPageState extends State<LoginPage> {
       final token = res.data["access_token"];
       await storage.write(key: "token", value: token);
 
-      // CAMBIO: Navegar a la página de listado de paquetes
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const ListarPaquetesPage()),
@@ -92,24 +103,53 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text("Login Agente")),
         body: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(children: [
-            TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: "Email")),
-            TextField(controller: passCtrl, decoration: const InputDecoration(labelText: "Contraseña"), obscureText: true),
-            const SizedBox(height: 20),
-            ElevatedButton(onPressed: login, child: const Text("Ingresar")),
-            TextButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterPage())),
-              child: const Text("Registrarse"),
-            ),
-          ]),
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                "Paquexpress",
+                style: TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).primaryColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              TextField(
+                controller: emailCtrl, 
+                decoration: const InputDecoration(
+                  labelText: "Email",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.email),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passCtrl, 
+                decoration: const InputDecoration(
+                  labelText: "Contraseña",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
+                ),
+                obscureText: true,
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: login, 
+                child: const Text("Ingresar", style: TextStyle(fontSize: 18)),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterPage())),
+                child: const Text("Registrarse", style: TextStyle(fontSize: 16)),
+              ),
+            ]),
         ),
       );
 }
-
-// -----------------------------------------------------------------
-// PÁGINA DE REGISTRO
-// -----------------------------------------------------------------
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -143,19 +183,17 @@ class _RegisterPageState extends State<RegisterPage> {
         body: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(children: [
-            TextField(controller: nombreCtrl, decoration: const InputDecoration(labelText: "Nombre")),
-            TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: "Email")),
-            TextField(controller: passCtrl, decoration: const InputDecoration(labelText: "Contraseña"), obscureText: true),
-            const SizedBox(height: 20),
-            ElevatedButton(onPressed: registrar, child: const Text("Registrarse")),
+            TextField(controller: nombreCtrl, decoration: const InputDecoration(labelText: "Nombre", border: OutlineInputBorder())),
+            const SizedBox(height: 16),
+            TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: "Email", border: OutlineInputBorder())),
+            const SizedBox(height: 16),
+            TextField(controller: passCtrl, decoration: const InputDecoration(labelText: "Contraseña", border: OutlineInputBorder()), obscureText: true),
+            const SizedBox(height: 30),
+            SizedBox(width: double.infinity, child: ElevatedButton(onPressed: registrar, child: const Text("Registrarse", style: TextStyle(fontSize: 18)))),
           ]),
         ),
       );
 }
-
-// -----------------------------------------------------------------
-// PÁGINA DE LISTADO DE PAQUETES (NUEVA)
-// -----------------------------------------------------------------
 
 class PaqueteItem {
   final int id;
@@ -210,27 +248,27 @@ class _ListarPaquetesPageState extends State<ListarPaquetesPage> {
                 itemCount: paquetes.length,
                 itemBuilder: (context, index) {
                   final paquete = paquetes[index];
-                  return ListTile(
-                    title: Text(paquete.uid),
-                    subtitle: Text(paquete.direccion),
-                    trailing: const Icon(Icons.arrow_forward_ios),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PaqueteMapaPage(paqueteId: paquete.id),
-                        ),
-                      );
-                    },
+                  return Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    elevation: 2,
+                    child: ListTile(
+                      title: Text(paquete.uid, style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
+                      subtitle: Text(paquete.direccion),
+                      trailing: Icon(Icons.arrow_forward_ios, color: Colors.red.shade300),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PaqueteMapaPage(paqueteId: paquete.id),
+                          ),
+                        );
+                      },
+                    ),
                   );
                 },
               ),
       );
 }
-
-// -----------------------------------------------------------------
-// PÁGINA DE MAPA
-// -----------------------------------------------------------------
 
 class PaqueteMapaPage extends StatefulWidget {
   final int paqueteId;
@@ -287,7 +325,6 @@ class _PaqueteMapaPageState extends State<PaqueteMapaPage> {
                         initialCenter: destino!,
                         initialZoom: 16.0,
                         interactionOptions: const InteractionOptions(
-                          // La corrección del error enableScrollWheel:
                           flags: InteractiveFlag.all,
                         )
                       ),
@@ -302,7 +339,7 @@ class _PaqueteMapaPageState extends State<PaqueteMapaPage> {
                               point: destino!,
                               width: 80,
                               height: 80,
-                              child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
+                              child: Icon(Icons.location_pin, color: Colors.red.shade900, size: 40), 
                             ),
                             if (miPos != null)
                               Marker(
@@ -320,7 +357,7 @@ class _PaqueteMapaPageState extends State<PaqueteMapaPage> {
                     padding: const EdgeInsets.all(12),
                     child: Row(
                       children: [
-                        Expanded(child: Text("Destino: $direccion")),
+                        Expanded(child: Text("Destino: ${direccion}", style: const TextStyle(fontWeight: FontWeight.bold))),
                         ElevatedButton(
                           onPressed: () => Navigator.push(
                             context,
@@ -336,10 +373,6 @@ class _PaqueteMapaPageState extends State<PaqueteMapaPage> {
       );
 }
 
-// -----------------------------------------------------------------
-// PÁGINA DE CONFIRMACIÓN
-// -----------------------------------------------------------------
-
 class ConfirmarEntregaPage extends StatefulWidget {
   final int paqueteId;
   const ConfirmarEntregaPage({super.key, required this.paqueteId});
@@ -349,16 +382,15 @@ class ConfirmarEntregaPage extends StatefulWidget {
 
 class _ConfirmarEntregaPageState extends State<ConfirmarEntregaPage> {
   XFile? photoXFile; 
-  Uint8List? photoBytes; // Usado para mostrar la imagen en Web/Desktop
+  Uint8List? photoBytes;
   Position? pos;
   String? fotoUrlPublica; 
 
   Future<void> _tomarFoto() async {
-    // La calidad de imagen se reduce para facilitar la subida
     final img = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 80); 
     if (img != null) {
       photoXFile = img; 
-      photoBytes = await img.readAsBytes(); // Lee los bytes para mostrar la vista previa
+      photoBytes = await img.readAsBytes();
       setState(() {});
     }
   }
@@ -379,7 +411,6 @@ class _ConfirmarEntregaPageState extends State<ConfirmarEntregaPage> {
       return;
     }
     try {
-      // 1. Subir la foto a FastAPI
       final form = FormData.fromMap({
         'file': MultipartFile.fromBytes(
             await photoXFile!.readAsBytes(), 
@@ -389,7 +420,6 @@ class _ConfirmarEntregaPageState extends State<ConfirmarEntregaPage> {
       final up = await api.dio.post("/fotos/", data: form);
       fotoUrlPublica = up.data['ruta'];
 
-      // 2. Enviar la confirmación de la entrega
       await api.dio.post("/entregas/confirmar", data: {
         "paquete_id": widget.paqueteId,
         "gps_lat": pos!.latitude,
@@ -399,7 +429,6 @@ class _ConfirmarEntregaPageState extends State<ConfirmarEntregaPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Entrega confirmada con éxito")));
-        // Vuelve a la pantalla principal (Lista de paquetes o Login)
         Navigator.popUntil(context, (route) => route.isFirst); 
       }
     } on DioException catch (e) {
@@ -425,9 +454,19 @@ class _ConfirmarEntregaPageState extends State<ConfirmarEntregaPage> {
                 ],
               ),
               const SizedBox(height: 16),
-              // Muestra la imagen usando bytes (compatible con Web/Desktop)
               if (photoBytes != null)
-                Image.memory(photoBytes!, height: 180, width: double.infinity, fit: BoxFit.contain)
+                Container(
+                  height: 180, 
+                  width: double.infinity, 
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Theme.of(context).primaryColor, width: 2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.memory(photoBytes!, fit: BoxFit.contain)
+                  )
+                )
               else
                 Container(height: 180, alignment: Alignment.center, decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300)), child: const Text("Sin foto")),
               const SizedBox(height: 12),
@@ -435,7 +474,7 @@ class _ConfirmarEntregaPageState extends State<ConfirmarEntregaPage> {
                   ? "Ubicación: Lat: ${pos!.latitude.toStringAsFixed(6)} · Lon: ${pos!.longitude.toStringAsFixed(6)}"
                   : "Ubicación no obtenida"),
               const Spacer(),
-              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _confirmar, child: const Text("Paquete entregado"))),
+              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _confirmar, child: const Text("Paquete entregado", style: TextStyle(fontSize: 18)))),
             ],
           ),
         ),
