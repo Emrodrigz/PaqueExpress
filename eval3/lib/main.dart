@@ -28,7 +28,10 @@ class ApiClient {
       },
       onError: (e, handler) async {
         if (e.response?.statusCode == 401) {
+          // Si el token expira o es inválido, borra y redirige
           await storage.delete(key: "token");
+          // Nota: La redirección a LoginPage debe manejarse a nivel de widget, 
+          // aquí solo se borra el token.
         }
         handler.next(e);
       },
@@ -47,6 +50,10 @@ class MyApp extends StatelessWidget {
         home: const LoginPage(),
       );
 }
+
+// -----------------------------------------------------------------
+// PÁGINA DE LOGIN
+// -----------------------------------------------------------------
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -68,9 +75,10 @@ class _LoginPageState extends State<LoginPage> {
       final token = res.data["access_token"];
       await storage.write(key: "token", value: token);
 
+      // CAMBIO: Navegar a la página de listado de paquetes
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const PaqueteMapaPage(paqueteId: 1)),
+        MaterialPageRoute(builder: (_) => const ListarPaquetesPage()),
       );
     } on DioException catch (e) {
       String msg = e.response?.data.toString() ?? e.message ?? "Error de red desconocido";
@@ -98,6 +106,10 @@ class _LoginPageState extends State<LoginPage> {
         ),
       );
 }
+
+// -----------------------------------------------------------------
+// PÁGINA DE REGISTRO
+// -----------------------------------------------------------------
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -140,6 +152,85 @@ class _RegisterPageState extends State<RegisterPage> {
         ),
       );
 }
+
+// -----------------------------------------------------------------
+// PÁGINA DE LISTADO DE PAQUETES (NUEVA)
+// -----------------------------------------------------------------
+
+class PaqueteItem {
+  final int id;
+  final String uid;
+  final String direccion;
+
+  PaqueteItem({required this.id, required this.uid, required this.direccion});
+}
+
+class ListarPaquetesPage extends StatefulWidget {
+  const ListarPaquetesPage({super.key});
+  @override
+  State<ListarPaquetesPage> createState() => _ListarPaquetesPageState();
+}
+
+class _ListarPaquetesPageState extends State<ListarPaquetesPage> {
+  List<PaqueteItem> paquetes = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarPaquetes();
+  }
+
+  Future<void> _cargarPaquetes() async {
+    try {
+      final res = await api.dio.get("/paquetes/listado"); 
+      setState(() {
+        paquetes = (res.data as List)
+            .map((json) => PaqueteItem(
+                  id: json['id'],
+                  uid: json['paquete_uid'],
+                  direccion: json['direccion'],
+                ))
+            .toList();
+        isLoading = false;
+      });
+    } on DioException catch (e) {
+      String msg = e.response?.data.toString() ?? e.message ?? "Error de red desconocido";
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error cargando listado: $msg")));
+      setState(() { isLoading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text("Seleccionar Paquete")),
+        body: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView.builder(
+                itemCount: paquetes.length,
+                itemBuilder: (context, index) {
+                  final paquete = paquetes[index];
+                  return ListTile(
+                    title: Text(paquete.uid),
+                    subtitle: Text(paquete.direccion),
+                    trailing: const Icon(Icons.arrow_forward_ios),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PaqueteMapaPage(paqueteId: paquete.id),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+      );
+}
+
+// -----------------------------------------------------------------
+// PÁGINA DE MAPA
+// -----------------------------------------------------------------
 
 class PaqueteMapaPage extends StatefulWidget {
   final int paqueteId;
@@ -196,6 +287,7 @@ class _PaqueteMapaPageState extends State<PaqueteMapaPage> {
                         initialCenter: destino!,
                         initialZoom: 16.0,
                         interactionOptions: const InteractionOptions(
+                          // La corrección del error enableScrollWheel:
                           flags: InteractiveFlag.all,
                         )
                       ),
@@ -244,6 +336,10 @@ class _PaqueteMapaPageState extends State<PaqueteMapaPage> {
       );
 }
 
+// -----------------------------------------------------------------
+// PÁGINA DE CONFIRMACIÓN
+// -----------------------------------------------------------------
+
 class ConfirmarEntregaPage extends StatefulWidget {
   final int paqueteId;
   const ConfirmarEntregaPage({super.key, required this.paqueteId});
@@ -253,23 +349,28 @@ class ConfirmarEntregaPage extends StatefulWidget {
 
 class _ConfirmarEntregaPageState extends State<ConfirmarEntregaPage> {
   XFile? photoXFile; 
-  Uint8List? photoBytes; 
+  Uint8List? photoBytes; // Usado para mostrar la imagen en Web/Desktop
   Position? pos;
   String? fotoUrlPublica; 
 
   Future<void> _tomarFoto() async {
-    final img = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 85);
+    // La calidad de imagen se reduce para facilitar la subida
+    final img = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 80); 
     if (img != null) {
       photoXFile = img; 
-      photoBytes = await img.readAsBytes(); 
+      photoBytes = await img.readAsBytes(); // Lee los bytes para mostrar la vista previa
       setState(() {});
     }
   }
 
   Future<void> _obtenerGPS() async {
-    await Geolocator.requestPermission();
-    pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-    setState(() {});
+    try {
+      await Geolocator.requestPermission();
+      pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      setState(() {});
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error al obtener GPS: $e")));
+    }
   }
 
   Future<void> _confirmar() async {
@@ -278,6 +379,7 @@ class _ConfirmarEntregaPageState extends State<ConfirmarEntregaPage> {
       return;
     }
     try {
+      // 1. Subir la foto a FastAPI
       final form = FormData.fromMap({
         'file': MultipartFile.fromBytes(
             await photoXFile!.readAsBytes(), 
@@ -287,6 +389,7 @@ class _ConfirmarEntregaPageState extends State<ConfirmarEntregaPage> {
       final up = await api.dio.post("/fotos/", data: form);
       fotoUrlPublica = up.data['ruta'];
 
+      // 2. Enviar la confirmación de la entrega
       await api.dio.post("/entregas/confirmar", data: {
         "paquete_id": widget.paqueteId,
         "gps_lat": pos!.latitude,
@@ -296,7 +399,8 @@ class _ConfirmarEntregaPageState extends State<ConfirmarEntregaPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Entrega confirmada con éxito")));
-        Navigator.popUntil(context, (route) => route.isFirst);
+        // Vuelve a la pantalla principal (Lista de paquetes o Login)
+        Navigator.popUntil(context, (route) => route.isFirst); 
       }
     } on DioException catch (e) {
       String msg = e.response?.data.toString() ?? e.message ?? "Error de red desconocido";
@@ -321,6 +425,7 @@ class _ConfirmarEntregaPageState extends State<ConfirmarEntregaPage> {
                 ],
               ),
               const SizedBox(height: 16),
+              // Muestra la imagen usando bytes (compatible con Web/Desktop)
               if (photoBytes != null)
                 Image.memory(photoBytes!, height: 180, width: double.infinity, fit: BoxFit.contain)
               else

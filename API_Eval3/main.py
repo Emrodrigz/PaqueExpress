@@ -106,6 +106,13 @@ class PaqueteOut(BaseModel):
     class Config:
         from_attributes = True
 
+class PaqueteListadoOut(BaseModel):
+    id: int
+    paquete_uid: str
+    direccion: str
+    class Config:
+        from_attribute = True
+
 class ConfirmEntregaIn(BaseModel):
     paquete_id: int
     gps_lat: float
@@ -115,6 +122,11 @@ class ConfirmEntregaIn(BaseModel):
 @app.get("/")
 def read_root():
     return {"status": "API Paquexpress Online"}
+
+@app.get("/paquetes/listado", response_model=list[PaqueteListadoOut])
+def listar_paquetes(db: Session = Depends(get_db)):
+    paquetes = db.query(Paquete).all()
+    return paquetes
 
 @app.post("/auth/register")
 def register(nombre: str = Form(...), email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
